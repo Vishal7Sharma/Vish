@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from demo.models import Blog
+from django.contrib.auth.models import User
 
 """Serializing Django objects. 
 Django's serialization framework provides a mechanism for “translating” Django models into other formats.
@@ -26,6 +27,16 @@ class BlogSerializer(serializers.Serializer):
 
 
 class BlogModelSerializer(serializers.ModelSerializer):
+    author = serializers.ReadOnlyField(source='author.username')
+
     class Meta:
         model = Blog
-        fields = ['id', 'title', 'content', ]
+        fields = ['id', 'title', 'content', 'author', ]
+
+
+class UserSerializer(serializers.ModelSerializer):
+    # posts = serializers.PrimaryKeyRelatedField(many=True, queryset=Blog.objects.all())
+
+    class Meta:
+        model = User
+        fields = ['id', 'username', ]

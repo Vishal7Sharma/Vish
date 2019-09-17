@@ -7,6 +7,7 @@ class Blog(models.Model):
     title = models.CharField(max_length=30, blank=True, default='This is the title')
     content = models.CharField(max_length=400, blank=True, default='This is the content')
     created = models.DateTimeField(auto_now_add=True)
+    author = models.ForeignKey('auth.User', on_delete=models.CASCADE)
 
     class Meta:
         ordering = ['created']

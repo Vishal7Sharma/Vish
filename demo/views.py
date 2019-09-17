@@ -3,13 +3,17 @@ from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.response import Response
 from rest_framework.request import Request
-from rest_framework import status, mixins, generics
+from rest_framework import status, mixins, generics, viewsets
 from rest_framework.decorators import api_view
 from rest_framework.parsers import JSONParser
+from rest_framework.reverse import reverse
 from rest_framework.views import APIView
 
 from demo.models import Blog
-from demo.serializers import BlogModelSerializer
+from demo.serializers import BlogModelSerializer, UserSerializer
+from rest_framework import permissions
+from django.contrib.auth.models import User
+from demo.permissions import IsOwnerOrReadOnly
 
 
 @csrf_exempt
@@ -123,7 +127,7 @@ class PostList(APIView):
 class PostDetail(APIView):
     """Retrieve, update and delete operations, Now we don't have access to pk outside get/put/delete
     methods hence we have to fetch object using pk in every function. To reuse the code we can
-    over ride our get_object method which below methods will nee to retrieve object using pk"""
+    over ride our get_object method which below methods will need to retrieve object using pk"""
 
     def get_object(self, pk):
         try:
@@ -181,8 +185,59 @@ class PostDetailUsingMixin(mixins.RetrieveModelMixin, mixins.UpdateModelMixin,
 class PostListGenericClassBasedView(generics.ListCreateAPIView):
     queryset = Blog.objects.all()
     serializer_class = BlogModelSerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    def perform_create(self, serializer):
+        serializer.save(author=self.request.user)
 
 
 class PostDetailGenericClassBasedViews(generics.RetrieveUpdateDestroyAPIView):
     queryset = Blog.objects.all()
     serializer_class = BlogModelSerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly, IsOwnerOrReadOnly, ]
+
+
+class UserList(APIView):
+    def get(self, request, format=None):
+        users = User.objects.all()
+        serializer = UserSerializer(users, many=True)
+        return Response(serializer.data)
+
+    def post(self, request, format=None):
+        serializer = UserSerializer(request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.data, status=status.HTTP_400_BAD_REQUEST)
+
+
+class UserDetail(generics.RetrieveUpdateDestroyAPIView):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+
+
+class UserViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    This view set automatically provides 'list' and 'detail' actions.
+    Same queryset and serializer_class argument but don't require two classes for ListCreate and RetrieveUpdateDestroy
+    """
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+
+
+class PostViewSet(viewsets.ModelViewSet):
+    """This viewset automatically provide create, list, retrieve, update, delete actions"""
+    queryset = Blog.objects.all()
+    serializer_class = BlogModelSerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly, IsOwnerOrReadOnly]
+
+    def perform_create(self, serializer):
+        serializer.save(author=self.request.user)
+
+
+@api_view(['GET'])
+def api_root(request, format=None):
+    return Response({
+        'users': reverse('user-list', request=request, format=format),
+        'posts': reverse('post-list', request=request, format=format),
+    })
